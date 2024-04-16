@@ -1,0 +1,225 @@
+---
+title: "Homework5"
+author: "Vivian O"
+format: 
+  html:
+    embed-resources: TRUE
+---
+
+```{r}
+#| warning: false
+library(lme4)
+library(ggplot2)
+library(lmerTest)
+library(tidyverse)
+library(emmeans)
+library(logistf)
+library(cowplot)
+library(lme4)
+```
+
+## Key Goals
+
+1.  Describe what the study is about - the hypothesis, predictions, etc.. Include some example sentences from the stimuli. This should all be done in markdown text - not in code comments.
+
+2.  Include a codebook/data dictionary that explains all of the original variables in the imported data.
+
+3.  How many participants do you have data for total? Use inline R-code to "print" this number in the markdown text.
+
+4.  How many rows of data remained after removing the trials as described in the "data analysis" section? (inline code in text - discuss what kind of data you excluded!)
+
+5.  Print a table showing the mean, min, max, and standard deviation of participant ages. (as a table in the markdown, not as R output)
+
+6.  Reproduce the figure in Figure 1.
+
+7.  Include a table showing the same results as in Figure 1 - you can skip the standard error numbers if that is too challenging.
+
+## Prediction in the maze
+
+background stuff. The hypothesis was...
+
+The study investigates predictive comprehension mechanisms using the maze task, focusing on the predictive effects of phonotactic constraints between expected words and their preceding words. The hypothesis is that participants pre-activate word forms based on contextual expectations, which should manifest as slower response times for unexpected words and their preceding articles compared to expected words and their articles.
+
+The predictions are as follows:
+
+1.  **Prediction 1**: Response times will be slower for unexpected nouns and their preceding articles compared to expected nouns and their preceding articles.
+
+2.  **Prediction 2**: Response times on articles and nouns will decrease as noun cloze probabilities increase, indicating more efficient processing for more predictable words.
+
+3.  **Prediction 3**: Early predictive effects of article form will be magnified for slower responders and smaller with faster responders, reflecting individual differences in processing speed and predictive abilities.
+
+Example sentences from the stimuli:
+
+1.  **High Cloze Probability Sentence**: "The children were playing outside with a \[kite/airplane\]."
+
+    In this sentence, "kite" is the expected noun with a high cloze probability, while "airplane" is the unexpected noun.
+
+2.  **Low Cloze Probability Sentence**: "The children were playing outside with an \[elephant/airplane\]."
+
+    In this sentence, "elephant" is the unexpected noun with a low cloze probability, while "airplane" is the expected noun.
+
+These sentences are presented in a maze task format, where participants choose between two alternatives for the continuation of the sentence, one of which is the correct continuation while the other is a distractor. The response times on articles and nouns are measured to assess predictive effects and processing efficiency.
+
+## Importing Data
+
+```{r}
+#directory <- "C:\\Users\\cpgl0052\\Dropbox\\Research\\delong maze\\"
+
+here::i_am("analysis/homework5-kvho2004.qmd")
+library(here)
+d <- read.csv(here("data/delong maze 40Ss.csv"), 
+              header = 0, sep = ",", comment.char = "#", strip.white = T,
+              col.names = c("Index","Time","Counter","Hash","Owner","Controller","Item","Element","Type","Group","FieldName","Value","WordNum","Word","Alt","WordOn","CorrWord","RT","Sent","TotalTime","Question","Resp","Acc","RespRT"))
+```
+
+## Codebook/Data Dictionary
+
+These are the variables in the raw data.
+
+```{r}
+summary(d)
+names(d)
+```
+
+1.  **Index**: This variable represents an index or unique identifier for each observation or data point in the dataset.
+
+2.  **Time**: It represents the timestamp at which each observation was recorded.
+
+3.  **Counter**: This variable represents a count or frequency associated with each observation.
+
+4.  **Hash**: It is a hash value that used for participant identification purposes.
+
+5.  **Owner**: This variable indicate whether the observation was logged in as experiment owner (if known)
+
+6.  **Controller**: It represents the type of task given in the observation (e.g., Maze, Form, Question, etc)
+
+7.  **Item**: This variable correlates to the sentence ID numbers
+
+8.  **Element**: It might represent an element or component of the observed item.
+
+9.  **Type**: This variable could indicate the type or category of the observed item.
+
+10. **Group**: It represents a grouping or category that each observation belongs to.
+
+11. **FieldName**: This variable might represent the name of a field or attribute associated with the observation.
+
+12. **Value**: It represent the value associated with a specific field or attribute.
+
+13. **WordNum**: This variable denotes the position or order of a word within a sequence.
+
+14. **Word**: It represent a word or textual element associated with the observation.
+
+15. **Alt**: This variable might represent an alternative or secondary value to the correct word within the observation.
+
+16. **WordOn**: It represents the position of the correct word (0=left, 1=right)
+
+17. **CorrWord**: This variable might represent a corrected version or counterpart of a word.
+
+18. **RT**: It represents the response time clicking an answer.
+
+19. **Sent**: This variable represents a sentence or textual element associated with the observation.
+
+20. **TotalTime**: It represents the total time duration (to click the correct answer) associated with the observation.
+
+21. **Question**: This variable represents the question given in the observation.
+
+22. **Resp**: It represents a response or answer associated with a question or query.
+
+23. **Acc**: This variable represents correctness associated with the response/answer (NULL if N/A).
+
+24. **RespRT**: It represents the response time to comprehend the question.
+
+## Data Exploration
+
+```{r}
+# Considering that the Hash column shows the ID numbers that correlates to each participant, we can find the number of participants in the study by finding the number of unique values under the Hash column
+
+unique_hashes <- unique(d$Hash)
+
+n_participants <- length(unique_hashes)
+
+#n_participants
+
+```
+
+The total number of participants for whom we have data is `r n_participants`.
+
+4.  How many rows of data remained after removing the trials as described in the "data analysis" section? (inline code in text - discuss what kind of data you excluded!)
+
+```{r, include = FALSE}
+#| warning: false
+demo <- d[d$Controller == "Form",1:12]
+names(demo) <- c("Subject","MD5","TrialType","Number","Element","Experiment","Item","Field","Response","X","field","resp")
+demo <- as.data.frame(lapply(demo, function (x) if (is.factor(x) | is.character(x)) factor(x) else x)) 
+
+resp <- d[d$Controller == "Question" & substr(d$Type,1,4) != "prac", c(1:10,21:24)]
+resp <- separate(data = resp, col = Type, into = c("exp", "item", "expect", "position", "pos", "cloze", "art.cloze", "n.cloze"), sep = "\\.", convert = TRUE, fill = "right")
+resp <- as.data.frame(lapply(resp, function (x) if (is.factor(x) | is.character(x)) factor(x) else x))
+resp$Acc <- as.numeric(as.character(resp$Acc))
+resp$RespRT <- as.numeric(as.character(resp$RespRT))
+
+rt <- d[d$Controller == "Maze" & substr(d$Type,1,4) != "prac", c(1:10,13:20)]
+rt <- separate(data = rt, col = Type, into = c("exp", "item", "expect", "position", "pos", "cloze", "art.cloze", "n.cloze"), sep = "\\.", convert = TRUE, fill = "right")
+rt <- as.data.frame(lapply(rt, function (x) if (is.factor(x) | is.character(x)) factor(x) else x))
+rt$WordNum <- as.numeric(as.character(rt$WordNum))
+rt$RT <- as.numeric(as.character(rt$RT))
+rt$TotalTime <- as.numeric(as.character(rt$TotalTime))
+rt$Acc <- as.numeric(as.character(recode(rt$CorrWord, yes = "1", no = "0")))
+rt$n.cloze.scale <- scale(rt$n.cloze)
+rt$art.cloze.scale <- scale(rt$art.cloze)
+
+# Removing item 29 due to incorrect noun pairing
+resp <- resp[resp$item != 29,]
+rt <- rt[rt$item != 29,]
+
+###
+
+# Item cloze distributions
+
+item.cloze <- rt %>% group_by(expect) %>% distinct(item, .keep_all = T) %>% arrange(item)
+
+item.cloze %>% summarize(n=n(), min.art.cloze = min(art.cloze), max.art.cloze = max(art.cloze), mean.art.cloze = mean(art.cloze), med.art.cloze = median(art.cloze),
+                         min.n.cloze = min(n.cloze), max.n.cloze = max(n.cloze), mean.n.cloze = mean(n.cloze), med.n.cloze = median(n.cloze))
+
+item.cloze %>% group_by(expect) %>% summarize(n=n(), cor = cor(art.cloze, n.cloze))
+
+
+
+# Demo checks
+
+demo %>% filter(field == "age") %>% summarize(m.age = mean(as.numeric(as.character(resp))), 
+                                              min.age = min(as.numeric(as.character(resp))), 
+                                              max.age = max(as.numeric(as.character(resp))),
+                                              sd.age = sd(as.numeric(as.character(resp))))
+
+ggplot(demo[demo$field == "age",], aes(x = as.numeric(as.character(resp)))) + geom_histogram()
+
+table(factor(demo[demo$field == "gender",]$resp))
+
+###
+
+### Comprehension question response analysis
+
+resp %>% summarize(n=n(), acc=mean(Acc), acc.sd=sd(Acc), rt=mean(RespRT), rt.sd=sd(RespRT)) %>% as.data.frame()
+
+
+resp %>% group_by(Hash) %>% summarize(n=n(), acc=mean(Acc), acc.sd=sd(Acc), rt=mean(RespRT), rt.sd=sd(RespRT)) %>% mutate(keep = acc > mean(acc)-2*sd(acc)) %>% arrange(acc) %>% as.data.frame()
+#remove 1 subject at 52% accuracy - all others >70%
+
+
+resp.s <- resp[resp$Hash != '9dAvrH0+R6a0U5adPzZSyA',]
+resp.s %>% summarize(n=n(), acc=mean(Acc), rt=mean(RespRT)) %>% as.data.frame()
+
+
+```
+
+
+```{r}
+
+n_removed <- nrow(resp) - nrow(resp.s)
+
+```
+
+The number of rows remaining after filtering out subjects with low accuracy (below 52%) is `r n_removed`.
+
+
