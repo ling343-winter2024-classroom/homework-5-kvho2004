@@ -129,7 +129,7 @@ names(d)
 
 24. **RespRT**: It represents the response time to comprehend the question.
 
-## Data Exploration
+## Participants Data Exploration
 
 ```{r}
 # Considering that the Hash column shows the ID numbers that correlates to each participant, we can find the number of participants in the study by finding the number of unique values under the Hash column
@@ -142,7 +142,7 @@ n_participants <- length(unique_hashes)
 
 ```
 
-The total number of participants for whom we have data is `r n_participants`.
+The total number of participants in the study is `r n_participants`.
 
 4.  How many rows of data remained after removing the trials as described in the "data analysis" section? (inline code in text - discuss what kind of data you excluded!)
 
@@ -220,6 +220,43 @@ n_removed <- nrow(resp) - nrow(resp.s)
 
 ```
 
-The number of rows remaining after filtering out subjects with low accuracy (below 52%) is `r n_removed`.
+After filtering out subjects with low accuracy (below 52%) and an observation that had an incorrect noun pairing, the number of rows remaining in the study's data is `r n_removed`.
+
+```{r}
+
+
+age_df <- demo[demo$field == "age", "resp", drop = FALSE]
+
+age_df$resp <- as.integer(as.character(age_df$resp))
+
+
+summary(age_df)
+
+```
+```{r}
+library(kableExtra)
+
+# Calculate summary statistics
+age_summary <- c(
+  Mean = mean(age_df$resp),
+  Minimum = min(age_df$resp),
+  Maximum = max(age_df$resp),
+  Std.Dev. = sd(age_df$resp)
+)
+
+# Converting the summary statistics to a dataframe
+age_summary_df <- data.frame(Statistic = names(age_summary), Value = age_summary)
+
+# the table kableExtra styling
+age_summary_table <- age_summary_df %>%
+  kbl() %>%
+  kable_styling()
+
+age_summary_table
+
+```
+
+
+
 
 
