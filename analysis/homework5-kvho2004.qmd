@@ -1,0 +1,355 @@
+---
+title: "Homework5"
+author: "Vivian O"
+format: 
+  html:
+    embed-resources: TRUE
+---
+
+```{r}
+#| warning: false
+library(lme4)
+library(ggplot2)
+library(lmerTest)
+library(tidyverse)
+library(emmeans)
+library(logistf)
+library(cowplot)
+library(lme4)
+```
+
+## Key Goals
+
+1.  Describe what the study is about - the hypothesis, predictions, etc.. Include some example sentences from the stimuli. This should all be done in markdown text - not in code comments.
+
+2.  Include a codebook/data dictionary that explains all of the original variables in the imported data.
+
+3.  How many participants do you have data for total? Use inline R-code to "print" this number in the markdown text.
+
+4.  How many rows of data remained after removing the trials as described in the "data analysis" section? (inline code in text - discuss what kind of data you excluded!)
+
+5.  Print a table showing the mean, min, max, and standard deviation of participant ages. (as a table in the markdown, not as R output)
+
+6.  Reproduce the figure in Figure 1.
+
+7.  Include a table showing the same results as in Figure 1 - you can skip the standard error numbers if that is too challenging.
+
+## Prediction in the maze
+
+background stuff. The hypothesis was...
+
+The study investigates predictive comprehension mechanisms using the maze task, focusing on the predictive effects of phonotactic constraints between expected words and their preceding words. The hypothesis is that participants pre-activate word forms based on contextual expectations, which should manifest as slower response times for unexpected words and their preceding articles compared to expected words and their articles.
+
+The predictions are as follows:
+
+1.  **Prediction 1**: Response times will be slower for unexpected nouns and their preceding articles compared to expected nouns and their preceding articles.
+
+2.  **Prediction 2**: Response times on articles and nouns will decrease as noun cloze probabilities increase, indicating more efficient processing for more predictable words.
+
+3.  **Prediction 3**: Early predictive effects of article form will be magnified for slower responders and smaller with faster responders, reflecting individual differences in processing speed and predictive abilities.
+
+Example sentences from the stimuli:
+
+1.  **High Cloze Probability Sentence**: "The children were playing outside with a \[kite/airplane\]."
+
+    In this sentence, "kite" is the expected noun with a high cloze probability, while "airplane" is the unexpected noun.
+
+2.  **Low Cloze Probability Sentence**: "The children were playing outside with an \[elephant/airplane\]."
+
+    In this sentence, "elephant" is the unexpected noun with a low cloze probability, while "airplane" is the expected noun.
+
+These sentences are presented in a maze task format, where participants choose between two alternatives for the continuation of the sentence, one of which is the correct continuation while the other is a distractor. The response times on articles and nouns are measured to assess predictive effects and processing efficiency.
+
+## Importing Data
+
+```{r}
+#directory <- "C:\\Users\\cpgl0052\\Dropbox\\Research\\delong maze\\"
+
+here::i_am("analysis/homework5-kvho2004.qmd")
+library(here)
+d <- read.csv(here("data/delong maze 40Ss.csv"), 
+              header = 0, sep = ",", comment.char = "#", strip.white = T,
+              col.names = c("Index","Time","Counter","Hash","Owner","Controller","Item","Element","Type","Group","FieldName","Value","WordNum","Word","Alt","WordOn","CorrWord","RT","Sent","TotalTime","Question","Resp","Acc","RespRT"))
+```
+
+## Codebook/Data Dictionary
+
+These are the variables in the raw data.
+
+```{r}
+summary(d)
+names(d)
+```
+
+1.  **Index**: This variable represents an index or unique identifier for each observation or data point in the dataset.
+
+2.  **Time**: It represents the timestamp at which each observation was recorded.
+
+3.  **Counter**: This variable represents a count or frequency associated with each observation.
+
+4.  **Hash**: It is a hash value that used for participant identification purposes.
+
+5.  **Owner**: This variable indicate whether the observation was logged in as experiment owner (if known)
+
+6.  **Controller**: It represents the type of task given in the observation (e.g., Maze, Form, Question, etc)
+
+7.  **Item**: This variable correlates to the sentence ID numbers
+
+8.  **Element**: It might represent an element or component of the observed item.
+
+9.  **Type**: This variable could indicate the type or category of the observed item.
+
+10. **Group**: It represents a grouping or category that each observation belongs to.
+
+11. **FieldName**: This variable might represent the name of a field or attribute associated with the observation.
+
+12. **Value**: It represent the value associated with a specific field or attribute.
+
+13. **WordNum**: This variable denotes the position or order of a word within a sequence.
+
+14. **Word**: It represent a word or textual element associated with the observation.
+
+15. **Alt**: This variable might represent an alternative or secondary value to the correct word within the observation.
+
+16. **WordOn**: It represents the position of the correct word (0=left, 1=right)
+
+17. **CorrWord**: This variable might represent a corrected version or counterpart of a word.
+
+18. **RT**: It represents the response time clicking an answer.
+
+19. **Sent**: This variable represents a sentence or textual element associated with the observation.
+
+20. **TotalTime**: It represents the total time duration (to click the correct answer) associated with the observation.
+
+21. **Question**: This variable represents the question given in the observation.
+
+22. **Resp**: It represents a response or answer associated with a question or query.
+
+23. **Acc**: This variable represents correctness associated with the response/answer (NULL if N/A).
+
+24. **RespRT**: It represents the response time to comprehend the question.
+
+## Participants Data Exploration
+
+```{r}
+# Considering that the Hash column shows the ID numbers that correlates to each participant, we can find the number of participants in the study by finding the number of unique values under the Hash column
+
+unique_hashes <- unique(d$Hash)
+
+n_participants <- length(unique_hashes)
+
+#n_participants
+
+```
+
+The total number of participants in the study is `r n_participants`.
+
+4.  How many rows of data remained after removing the trials as described in the "data analysis" section? (inline code in text - discuss what kind of data you excluded!)
+
+```{r, include = FALSE}
+#| warning: false
+demo <- d[d$Controller == "Form",1:12]
+names(demo) <- c("Subject","MD5","TrialType","Number","Element","Experiment","Item","Field","Response","X","field","resp")
+demo <- as.data.frame(lapply(demo, function (x) if (is.factor(x) | is.character(x)) factor(x) else x)) 
+
+resp <- d[d$Controller == "Question" & substr(d$Type,1,4) != "prac", c(1:10,21:24)]
+resp <- separate(data = resp, col = Type, into = c("exp", "item", "expect", "position", "pos", "cloze", "art.cloze", "n.cloze"), sep = "\\.", convert = TRUE, fill = "right")
+resp <- as.data.frame(lapply(resp, function (x) if (is.factor(x) | is.character(x)) factor(x) else x))
+resp$Acc <- as.numeric(as.character(resp$Acc))
+resp$RespRT <- as.numeric(as.character(resp$RespRT))
+
+rt <- d[d$Controller == "Maze" & substr(d$Type,1,4) != "prac", c(1:10,13:20)]
+rt <- separate(data = rt, col = Type, into = c("exp", "item", "expect", "position", "pos", "cloze", "art.cloze", "n.cloze"), sep = "\\.", convert = TRUE, fill = "right")
+rt <- as.data.frame(lapply(rt, function (x) if (is.factor(x) | is.character(x)) factor(x) else x))
+rt$WordNum <- as.numeric(as.character(rt$WordNum))
+rt$RT <- as.numeric(as.character(rt$RT))
+rt$TotalTime <- as.numeric(as.character(rt$TotalTime))
+rt$Acc <- as.numeric(as.character(recode(rt$CorrWord, yes = "1", no = "0")))
+rt$n.cloze.scale <- scale(rt$n.cloze)
+rt$art.cloze.scale <- scale(rt$art.cloze)
+
+# Removing item 29 due to incorrect noun pairing
+resp <- resp[resp$item != 29,]
+rt <- rt[rt$item != 29,]
+
+###
+
+# Item cloze distributions
+
+item.cloze <- rt %>% group_by(expect) %>% distinct(item, .keep_all = T) %>% arrange(item)
+
+item.cloze %>% summarize(n=n(), min.art.cloze = min(art.cloze), max.art.cloze = max(art.cloze), mean.art.cloze = mean(art.cloze), med.art.cloze = median(art.cloze),
+                         min.n.cloze = min(n.cloze), max.n.cloze = max(n.cloze), mean.n.cloze = mean(n.cloze), med.n.cloze = median(n.cloze))
+
+item.cloze %>% group_by(expect) %>% summarize(n=n(), cor = cor(art.cloze, n.cloze))
+
+
+
+# Demo checks
+
+demo %>% filter(field == "age") %>% summarize(m.age = mean(as.numeric(as.character(resp))), 
+                                              min.age = min(as.numeric(as.character(resp))), 
+                                              max.age = max(as.numeric(as.character(resp))),
+                                              sd.age = sd(as.numeric(as.character(resp))))
+
+ggplot(demo[demo$field == "age",], aes(x = as.numeric(as.character(resp)))) + geom_histogram()
+
+table(factor(demo[demo$field == "gender",]$resp))
+
+###
+
+### Comprehension question response analysis
+
+resp %>% summarize(n=n(), acc=mean(Acc), acc.sd=sd(Acc), rt=mean(RespRT), rt.sd=sd(RespRT)) %>% as.data.frame()
+
+
+resp %>% group_by(Hash) %>% summarize(n=n(), acc=mean(Acc), acc.sd=sd(Acc), rt=mean(RespRT), rt.sd=sd(RespRT)) %>% mutate(keep = acc > mean(acc)-2*sd(acc)) %>% arrange(acc) %>% as.data.frame()
+#remove 1 subject at 52% accuracy - all others >70%
+
+
+resp.s <- resp[resp$Hash != '9dAvrH0+R6a0U5adPzZSyA',]
+resp.s %>% summarize(n=n(), acc=mean(Acc), rt=mean(RespRT)) %>% as.data.frame()
+
+
+```
+
+
+```{r}
+
+n_removed <- nrow(resp) - nrow(resp.s)
+
+```
+
+After filtering out subjects with low accuracy (below 52%) and an observation that had an incorrect noun pairing, the number of rows remaining in the study's data is `r n_removed`.
+
+```{r}
+
+
+age_df <- demo[demo$field == "age", "resp", drop = FALSE]
+
+age_df$resp <- as.integer(as.character(age_df$resp))
+
+
+summary(age_df)
+
+```
+```{r}
+library(kableExtra)
+
+# Calculate summary statistics
+age_summary <- c(
+  Mean = mean(age_df$resp),
+  Minimum = min(age_df$resp),
+  Maximum = max(age_df$resp),
+  Std.Dev. = sd(age_df$resp)
+)
+
+# Converting the summary statistics to a dataframe
+age_summary_df <- data.frame(Statistic = names(age_summary), Value = age_summary)
+
+# the table kableExtra styling
+age_summary_table <- age_summary_df %>%
+  kbl() %>%
+  kable_styling()
+
+age_summary_table
+
+```
+
+
+The participant age demographic can be summarized as follows:
+
+- Mean age: 34.87 years
+- Minimum age: 18 years
+- Maximum age: 71 years
+- Standard deviation: 14.08 years
+
+This summary provides an overview of the distribution of ages among the participants. The mean age indicates the central tendency of the dataset, while the minimum and maximum ages give insights into the range of ages represented. Additionally, the standard deviation provides a measure of the dispersion or spread of ages around the mean.
+
+## Figure 1: Response times by region. 
+
+Error bars indicate difference-adjusted 95% mixed-effect-model-based intervals (Politzer-Ahles, 2017)
+
+```{r, include = FALSE}
+rt.s <- rt[rt$Hash != '9dAvrH0+R6a0U5adPzZSyA',]
+
+rt.s$rgn.fix <- rt.s$WordNum - rt.s$pos + 1
+rt.s$word.num.z <- scale(rt.s$WordNum)
+rt.s$word.len <- nchar(as.character(rt.s$Word))
+rt.s$Altword.len <- nchar(as.character(rt.s$Alt))
+contrasts(rt.s$expect) <- c(-.5,.5)
+
+rt.s$item.expect <- paste(rt.s$item, rt.s$expect, sep=".")
+delong.items <- rt.s %>% filter(rgn.fix == 0) %>% distinct(item.expect, .keep_all = TRUE)
+
+#Response accuracy
+rt.s %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc)
+rt.s %>% filter(rgn.fix == 0) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc)
+rt.s %>% filter(rgn.fix == 1) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc)
+rt.s %>% filter(rgn.fix > -4 & rgn.fix < 4) %>% group_by(Hash) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc) %>% mutate(keep = acc > mean(acc)-2*sd(acc)) %>% arrange(acc) %>% as.data.frame()
+#remove 2 (73.5% and 81.9%) - all others >90%
+
+rt.s.filt <- rt.s[rt.s$Hash != "gyxidIf0fqXBM7nxg2K7SQ" & rt.s$Hash != "f8dC3CkleTBP9lUufzUOyQ",]
+
+rt.s.filt %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc)
+rt.s.filt %>% filter(rgn.fix == 0) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc)
+rt.s.filt %>% filter(rgn.fix == 1) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc)
+
+#Graph the raw Reading Error data
+rgn.acc.raw <- rt.s.filt %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% group_by(rgn.fix, expect) %>% summarize(n=n(), subj=length(unique(Hash)), err=1-mean(Acc), stderr=sd(Acc)/sqrt(subj)) %>% as.data.frame()
+print(rgn.acc.raw, digits=2)
+rgn.acc.raw$rgn <- as.factor(recode(rgn.acc.raw$rgn.fix, "-3"="CW-3", "-2"="CW-2", "-1"="CW-1", "0"="art", "1"="n","2"="CW+1", "3"="CW+2", "4"="CW+3"))
+rgn.acc.raw$rgn <- ordered(rgn.acc.raw$rgn, levels = c("CW-3", "CW-2", "CW-1", "art", "n", "CW+1", "CW+2", "CW+3"))
+
+
+#Analyze Response Times
+rt.s.filt %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% filter(Acc == 1) %>% summarize(n=n(), rt=mean(RT), rt.sd=sd(RT), med=median(RT), rt.min=min(RT), rt.max=max(RT))
+rt.s.filt %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% filter(Acc == 1) %>% group_by(Hash) %>% summarize(n=n(), rt=mean(RT), rt.sd=sd(RT), med=median(RT), rt.min=min(RT), rt.max=max(RT)) %>% mutate(keep = rt > mean(rt)-2*sd(rt) | rt < mean(rt)+2*sd(rt)) %>% as.data.frame()
+#all Ss kept
+
+#Filter out reading errors
+rt.s.rgn <- rt.s.filt %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% filter(Acc == 1) %>% as.data.frame()
+hist(rt.s.rgn$RT, breaks=100)
+hist(log(rt.s.rgn$RT), breaks=100)
+
+#Graph raw (error free) RTs
+rgn.rt.raw <- rt.s.filt %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% filter(Acc == 1) %>% group_by(rgn.fix, expect) %>% summarize(n=n(), subj=length(unique(Hash)), rt=mean(RT), sd=sd(RT), stderr=sd/sqrt(subj)) %>% as.data.frame()
+rgn.rt.raw$rgn <- as.factor(recode(rgn.rt.raw$rgn.fix, "-3"="CW-3", "-2"="CW-2", "-1"="CW-1", "0"="art", "1"="n","2"="CW+1", "3"="CW+2", "4"="CW+3"))
+
+rgn.rt.raw$rgn <- ordered(rgn.rt.raw$rgn, levels = c("CW-3", "CW-2", "CW-1", "art", "n", "CW+1", "CW+2", "CW+3"))
+figure1<- ggplot(rgn.rt.raw, aes(x=rgn, y=rt, group=expect, shape=expect)) +
+  geom_line(stat = "identity", position=position_dodge(width=.3)) +
+  geom_point(stat = "identity", position=position_dodge(width=.3), size=3) +
+  geom_errorbar(aes(ymin = rt-stderr, ymax = rt+stderr), width=.15, position=position_dodge(width=.3)) +
+  scale_shape_manual(name="", labels=c("Expected", "Unexpected"), values = c(21,19)) + 
+  xlab("Word") + ylab("Reading Time (msec)") + 
+  theme_bw()
+
+```
+
+```{r}
+figure1
+```
+
+Corresponding table to figure 1
+```{r}
+head(rgn.rt.raw)
+
+mean_rt_table <- rgn.rt.raw %>%
+  group_by(rgn, expect) %>%
+  summarize(
+    Mean_RT = mean(rt, na.rm = TRUE),
+    SD_RT = sd(rt, na.rm = TRUE),
+    SE_RT = SD_RT / sqrt(n())
+  ) %>%
+  spread(expect, Mean_RT)  # Spread the data to have separate columns for Expected and Unexpected
+
+# Rename the columns for clarity
+colnames(mean_rt_table) <- c("Region", "Expected", "Unexpected")
+
+mean_rt_table
+
+```
+Figure 1 illustrates the outcomes based on expectation. Reaction times (RTs) in the unexpected condition were notably slower compared to the expected condition.
+
+
