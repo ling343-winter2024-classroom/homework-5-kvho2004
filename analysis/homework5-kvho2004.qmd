@@ -257,6 +257,99 @@ age_summary_table
 ```
 
 
+The participant age demographic can be summarized as follows:
 
+- Mean age: 34.87 years
+- Minimum age: 18 years
+- Maximum age: 71 years
+- Standard deviation: 14.08 years
+
+This summary provides an overview of the distribution of ages among the participants. The mean age indicates the central tendency of the dataset, while the minimum and maximum ages give insights into the range of ages represented. Additionally, the standard deviation provides a measure of the dispersion or spread of ages around the mean.
+
+## Figure 1: Response times by region. 
+
+Error bars indicate difference-adjusted 95% mixed-effect-model-based intervals (Politzer-Ahles, 2017)
+
+```{r, include = FALSE}
+rt.s <- rt[rt$Hash != '9dAvrH0+R6a0U5adPzZSyA',]
+
+rt.s$rgn.fix <- rt.s$WordNum - rt.s$pos + 1
+rt.s$word.num.z <- scale(rt.s$WordNum)
+rt.s$word.len <- nchar(as.character(rt.s$Word))
+rt.s$Altword.len <- nchar(as.character(rt.s$Alt))
+contrasts(rt.s$expect) <- c(-.5,.5)
+
+rt.s$item.expect <- paste(rt.s$item, rt.s$expect, sep=".")
+delong.items <- rt.s %>% filter(rgn.fix == 0) %>% distinct(item.expect, .keep_all = TRUE)
+
+#Response accuracy
+rt.s %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc)
+rt.s %>% filter(rgn.fix == 0) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc)
+rt.s %>% filter(rgn.fix == 1) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc)
+rt.s %>% filter(rgn.fix > -4 & rgn.fix < 4) %>% group_by(Hash) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc) %>% mutate(keep = acc > mean(acc)-2*sd(acc)) %>% arrange(acc) %>% as.data.frame()
+#remove 2 (73.5% and 81.9%) - all others >90%
+
+rt.s.filt <- rt.s[rt.s$Hash != "gyxidIf0fqXBM7nxg2K7SQ" & rt.s$Hash != "f8dC3CkleTBP9lUufzUOyQ",]
+
+rt.s.filt %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc)
+rt.s.filt %>% filter(rgn.fix == 0) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc)
+rt.s.filt %>% filter(rgn.fix == 1) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc)
+
+#Graph the raw Reading Error data
+rgn.acc.raw <- rt.s.filt %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% group_by(rgn.fix, expect) %>% summarize(n=n(), subj=length(unique(Hash)), err=1-mean(Acc), stderr=sd(Acc)/sqrt(subj)) %>% as.data.frame()
+print(rgn.acc.raw, digits=2)
+rgn.acc.raw$rgn <- as.factor(recode(rgn.acc.raw$rgn.fix, "-3"="CW-3", "-2"="CW-2", "-1"="CW-1", "0"="art", "1"="n","2"="CW+1", "3"="CW+2", "4"="CW+3"))
+rgn.acc.raw$rgn <- ordered(rgn.acc.raw$rgn, levels = c("CW-3", "CW-2", "CW-1", "art", "n", "CW+1", "CW+2", "CW+3"))
+
+
+#Analyze Response Times
+rt.s.filt %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% filter(Acc == 1) %>% summarize(n=n(), rt=mean(RT), rt.sd=sd(RT), med=median(RT), rt.min=min(RT), rt.max=max(RT))
+rt.s.filt %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% filter(Acc == 1) %>% group_by(Hash) %>% summarize(n=n(), rt=mean(RT), rt.sd=sd(RT), med=median(RT), rt.min=min(RT), rt.max=max(RT)) %>% mutate(keep = rt > mean(rt)-2*sd(rt) | rt < mean(rt)+2*sd(rt)) %>% as.data.frame()
+#all Ss kept
+
+#Filter out reading errors
+rt.s.rgn <- rt.s.filt %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% filter(Acc == 1) %>% as.data.frame()
+hist(rt.s.rgn$RT, breaks=100)
+hist(log(rt.s.rgn$RT), breaks=100)
+
+#Graph raw (error free) RTs
+rgn.rt.raw <- rt.s.filt %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% filter(Acc == 1) %>% group_by(rgn.fix, expect) %>% summarize(n=n(), subj=length(unique(Hash)), rt=mean(RT), sd=sd(RT), stderr=sd/sqrt(subj)) %>% as.data.frame()
+rgn.rt.raw$rgn <- as.factor(recode(rgn.rt.raw$rgn.fix, "-3"="CW-3", "-2"="CW-2", "-1"="CW-1", "0"="art", "1"="n","2"="CW+1", "3"="CW+2", "4"="CW+3"))
+
+rgn.rt.raw$rgn <- ordered(rgn.rt.raw$rgn, levels = c("CW-3", "CW-2", "CW-1", "art", "n", "CW+1", "CW+2", "CW+3"))
+figure1<- ggplot(rgn.rt.raw, aes(x=rgn, y=rt, group=expect, shape=expect)) +
+  geom_line(stat = "identity", position=position_dodge(width=.3)) +
+  geom_point(stat = "identity", position=position_dodge(width=.3), size=3) +
+  geom_errorbar(aes(ymin = rt-stderr, ymax = rt+stderr), width=.15, position=position_dodge(width=.3)) +
+  scale_shape_manual(name="", labels=c("Expected", "Unexpected"), values = c(21,19)) + 
+  xlab("Word") + ylab("Reading Time (msec)") + 
+  theme_bw()
+
+```
+
+```{r}
+figure1
+```
+
+Corresponding table to figure 1
+```{r}
+head(rgn.rt.raw)
+
+mean_rt_table <- rgn.rt.raw %>%
+  group_by(rgn, expect) %>%
+  summarize(
+    Mean_RT = mean(rt, na.rm = TRUE),
+    SD_RT = sd(rt, na.rm = TRUE),
+    SE_RT = SD_RT / sqrt(n())
+  ) %>%
+  spread(expect, Mean_RT)  # Spread the data to have separate columns for Expected and Unexpected
+
+# Rename the columns for clarity
+colnames(mean_rt_table) <- c("Region", "Expected", "Unexpected")
+
+mean_rt_table
+
+```
+Figure 1 illustrates the outcomes based on expectation. Reaction times (RTs) in the unexpected condition were notably slower compared to the expected condition.
 
 
